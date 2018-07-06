@@ -1,8 +1,4 @@
-import base64
-import os
-from io import BytesIO
-
-MODE = "CBC"  # "ECB" or "CBC"
+import math
 
 
 def _rotate_left(val, r_bits, max_bits):
@@ -19,10 +15,10 @@ def _rotate_right(val, r_bits, max_bits):
 
 
 def _expand_key(key, wordsize, rounds):
-    # Pads key so that it is aligned with the word size, then splits it into words
+    # Pads _key so that it is aligned with the word size, then splits it into words
     def _align_key(key, align_val):
         while len(key) % (align_val):
-            key += b'\x00'  # Add 0 bytes until the key length is aligned to the block size
+            key += b'\x00'  # Add 0 bytes until the _key length is aligned to the block size
 
         L = []
         for i in range(0, len(key), align_val):
@@ -113,23 +109,13 @@ def encrypt_file(infile, outfile, key, blocksize, rounds):
     w = blocksize // 2
     b = blocksize // 8
 
-    if MODE == 'CBC':
-        last_iv = os.urandom(b)
-        # set iv in the beginning of outfile
-        outfile.write(last_iv)
-
     expanded_key = _expand_key(key, w, rounds)
 
     chunk = infile.read(b)
-
     while chunk:
         chunk = chunk.ljust(b, b'\x00')  # padding with 0 bytes if not large enough
-        if MODE == 'CBC':
-            chunk = bytes([a ^ b for a, b in zip(last_iv, chunk)])
-
         encrypted_chunk = _encrypt_block(chunk, expanded_key, blocksize, rounds)
         outfile.write(encrypted_chunk)
-        last_iv = encrypted_chunk
 
         chunk = infile.read(b)  # Read in blocksize number of bytes
 
@@ -137,21 +123,12 @@ def encrypt_file(infile, outfile, key, blocksize, rounds):
 def decrypt_file(infile, outfile, key, blocksize, rounds):
     w = blocksize // 2
     b = blocksize // 8
-    if MODE == 'CBC':
-        last_iv = outfile.read(b)
 
     expanded_key = _expand_key(key, w, rounds)
 
     chunk = infile.read(b)
-
     while chunk:
         decrypted_chunk = _decrypt_block(chunk, expanded_key, blocksize, rounds)
-        if MODE == 'CBC':
-            decrypted_chunk = bytes([a ^ b
-                                     for a, b in zip(last_iv,
-                                                     decrypted_chunk)])
-
-        last_iv = chunk
         chunk = infile.read(b)  # Read in blocksize number of bytes
         if not chunk:
             decrypted_chunk = decrypted_chunk.rstrip(b'\x00')
@@ -159,40 +136,5 @@ def decrypt_file(infile, outfile, key, blocksize, rounds):
         outfile.write(decrypted_chunk)
 
 
-def encrypt_str(input_str, key):
-    str_in = BytesIO()
-    str_in.write(input_str.encode('utf-8'))
-    str_in.seek(0)
-    str_out = BytesIO()
-
-    encrypt_file(str_in, str_out, key.encode('utf-8'), 32, 12)
-
-    return base64.urlsafe_b64encode(str_out.getvalue()).decode("utf-8")
 
 
-def decrypt_str(input_enc_str, key):
-    enc_bytes = base64.urlsafe_b64decode(input_enc_str)
-
-    byte_in = BytesIO()
-    byte_in.write(enc_bytes)
-    byte_in.seek(0)
-    byte_out = BytesIO()
-
-    decrypt_file(byte_in, byte_out, key.encode('utf-8'), 32, 12)
-
-    return byte_out.getvalue().decode('utf-8')
-
-
-if __name__ == '__main__':
-    import time
-
-    test_origin_char = '{}-{}'.format(1, int(time.time()))
-    pwd = 'pig'
-
-    # test encrypt string
-    print('ori', test_origin_char.encode('utf-8'))
-    enc_str = encrypt_str(test_origin_char, pwd)
-    print("encrypted_str", enc_str, len(enc_str))
-    dec_str = decrypt_str(enc_str, pwd)
-    print("decrypted_str", dec_str)
-    assert dec_str == test_origin_char
