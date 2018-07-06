@@ -1,4 +1,7 @@
 """
+The founder of this project is:
+https://github.com/buckley-w-david/RC5-python/network
+
 Name:           David Buckley
 Student Number: 0894593
 Date:           March 8th, 2017
