@@ -16,7 +16,7 @@ class RC5(object):
         self.mode = 'CBC'  # "ECB" or "CBC"
         self.blocksize = 32
         self.rounds = 12
-        self.init_iv = os.urandom(self.blocksize // 8)
+        self.iv = os.urandom(self.blocksize // 8)
         self._key = key.encode('utf-8')
 
     @staticmethod
@@ -128,9 +128,9 @@ class RC5(object):
         b = self.blocksize // 8
 
         if self.mode == 'CBC':
-            last_iv = self.init_iv
+            last_v = self.iv
             # set iv in the beginning of outfile
-            outfile.write(last_iv)
+            outfile.write(last_v)
 
         expanded_key = RC5._expand_key(self._key, w, self.rounds)
 
@@ -139,13 +139,13 @@ class RC5(object):
         while chunk:
             chunk = chunk.ljust(b, b'\x00')  # padding with 0 bytes if not large enough
             if self.mode == 'CBC':
-                chunk = bytes([a ^ b for a, b in zip(last_iv, chunk)])
+                chunk = bytes([a ^ b for a, b in zip(last_v, chunk)])
 
             encrypted_chunk = RC5._encrypt_block(chunk, expanded_key,
                                                  self.blocksize,
                                                  self.rounds)
             outfile.write(encrypted_chunk)
-            last_iv = encrypted_chunk
+            last_v = encrypted_chunk
 
             chunk = infile.read(b)  # Read in blocksize number of bytes
 
@@ -153,7 +153,7 @@ class RC5(object):
         w = self.blocksize // 2
         b = self.blocksize // 8
         if self.mode == 'CBC':
-            last_iv = outfile.read(b)
+            last_v = outfile.read(b)
 
         expanded_key = RC5._expand_key(self._key, w,
                                        self.rounds)
@@ -166,10 +166,9 @@ class RC5(object):
                                                  self.rounds)
             if self.mode == 'CBC':
                 decrypted_chunk = bytes([a ^ b
-                                         for a, b in zip(last_iv,
+                                         for a, b in zip(last_v,
                                                          decrypted_chunk)])
-
-            last_iv = chunk
+                last_v = chunk
             chunk = infile.read(b)  # Read in blocksize number of bytes
             if not chunk:
                 decrypted_chunk = decrypted_chunk.rstrip(b'\x00')
